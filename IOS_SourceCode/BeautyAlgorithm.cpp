@@ -1063,9 +1063,9 @@ return -1;
 			{
 				continue;
 			}
-			temp1.at<Vec3b>(row, col)[0] += (255 - temp1.at<Vec3b>(row, col)[0]) * rate*0.15;
-			temp1.at<Vec3b>(row, col)[1] += (255 - temp1.at<Vec3b>(row, col)[1]) * rate*0.15;
-			temp1.at<Vec3b>(row, col)[2] += (255 - temp1.at<Vec3b>(row, col)[2]) * rate*0.15;
+			temp1.at<Vec3b>(row, col)[0] += (255 - temp1.at<Vec3b>(row, col)[0]) * rate*0.125;
+			temp1.at<Vec3b>(row, col)[1] += (255 - temp1.at<Vec3b>(row, col)[1]) * rate*0.125;
+			temp1.at<Vec3b>(row, col)[2] += (255 - temp1.at<Vec3b>(row, col)[2]) * rate*0.125;
 		}
 	}
 
@@ -1214,7 +1214,7 @@ double  ColourCorrect(cv::Mat src, double ratio, cv::Mat& dst, short* p)
 		return -1;
 	}
 	
-	printf("ColourCorrect 2021-4-7===p0:%d,p1:%d,p2:%d,p3:%d,p4:%d,p5:%d,p6:%d,p7:%d\n",p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7]);
+	printf("ColourCorrect 2021-4-8===p0:%d,p1:%d,p2:%d,p3:%d,p4:%d,p5:%d,p6:%d,p7:%d\n",p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7]);
 	
 	printf("Correct:rows:%d,cols:%d\n",src.rows,src.cols);
 	
@@ -1223,7 +1223,6 @@ double  ColourCorrect(cv::Mat src, double ratio, cv::Mat& dst, short* p)
 	
 	printf("src convertTo lab finished!\n");
 	
-
 	//added at 2021-03-21 	//定位人脸区域
 	int x1 = p[4 + 2 * 1];
 	int y1 = p[4 + 2 * 1 + 1] - 1.2 * (p[4 + 2 * 9 + 1] - p[4 + 2 * 1 + 1]);
@@ -1281,41 +1280,45 @@ double  ColourCorrect(cv::Mat src, double ratio, cv::Mat& dst, short* p)
 	printf("fillPoly finished\n");
 	
 	
+	int linePos = 0;  //眉毛所在的行
+	int iFlag = 0;
+	for (int row = 0; row < faceMask.rows; row++)
+	{
+		for (int col = 0; col < faceMask.cols; col++)
+		{
+			if (faceMask.at<Vec3b>(row, col)[0] == 255 && faceMask.at<Vec3b>(row, col)[1] == 255 && faceMask.at<Vec3b>(row, col)[2] == 255)
+			{
+				linePos = row;
+				iFlag = 1;
+				break;
+			}
+		}
+		if (iFlag == 1)
+		{
+			break;
+		}
+	}
 
-	Mat result;
-	bitwise_and(src, faceMask, result);
+	for (int i = 0; i < linePos*1.05; i++)
+	{
+		if (i >= y1 && i < y1 + h1)
+		{
+			for (int j = 0; j < faceMask.cols; j++)
+			{
+				if (j >= x1 && j < x1 + w1)
+				{
+					if (img0.at<Vec3b>(i - y1, j - x1)[0] * img0.at<Vec3b>(i - y1, j - x1)[1] * img0.at<Vec3b>(i - y1, j - x1)[2] != 0)
+					{
+						faceMask.at<Vec3b>(i, j)[0] = 255;
+						faceMask.at<Vec3b>(i, j)[1] = 255;
+						faceMask.at<Vec3b>(i, j)[2] = 255;
+					}
+				}
+			}
+		}
+	}
 
 	double rate = 0.35+ 0.005 * ratio; 
-
-	Mat dstImage;
-	vector<Mat> Channels;
-	split(result, Channels);
-	Mat B = Channels[0];
-	Mat G = Channels[1];
-	Mat R = Channels[2];
-	double Baver = mean(B)[0];
-	double Gaver = mean(G)[0];
-	double Raver = mean(R)[0];
-
-	double K = (Baver + Gaver + Raver) / 3;
-
-	double Kb = K / Baver;	
-	double Kg = K / Gaver;	
-	double Kr = K / Raver;
-
-	/*R * 0.299 + G * 0.587 + B * 0.114*/
-
-	//白平衡处理后的通道	
-	Mat dstB = B * Kb* rate;
-	Mat dstG = G * Kg* rate;
-	Mat dstR = R * Kr* rate;
-	vector<Mat> dstChanges;
-
-	dstChanges.push_back(dstB);
-	dstChanges.push_back(dstG);
-	dstChanges.push_back(dstR);
-	merge(dstChanges, dstImage); //合并通道
-
 
 	uchar* pImg = srcLab.data;
 	// 计算颜色转换值
@@ -1329,9 +1332,9 @@ double  ColourCorrect(cv::Mat src, double ratio, cv::Mat& dst, short* p)
 				continue;
 			}
 
-			pImg[3 * j + 0] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 0]+ rate * 2));
+			pImg[3 * j + 0] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 0]));
 			pImg[3 * j + 1] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 1] + rate * 5));
-			pImg[3 * j + 2] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 2]+ rate * 3));
+			pImg[3 * j + 2] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 2]));
 
 		}
 		pImg += srcLab.step;
@@ -1340,33 +1343,17 @@ double  ColourCorrect(cv::Mat src, double ratio, cv::Mat& dst, short* p)
 	Mat temp1;
 	cvtColor(srcLab, temp1, COLOR_Lab2BGR);
 
-	/*for (int row = 0; row < dstImage.rows; row++)
-	{
-		for (int col = 0; col < dstImage.cols; col++)
-		{
-			if (faceMask.at<Vec3b>(row, col)[0] == 0 && faceMask.at<Vec3b>(row, col)[1] == 0 && faceMask.at<Vec3b>(row, col)[2] == 0)
-			{
-				continue;
-			}
-			temp1.at<Vec3b>(row, col)[0] += (255 - temp1.at<Vec3b>(row, col)[0]) * rate * 0.75;
-			temp1.at<Vec3b>(row, col)[1] += (255 - temp1.at<Vec3b>(row, col)[1]) * rate * 0.75;
-			temp1.at<Vec3b>(row, col)[2] += (255 - temp1.at<Vec3b>(row, col)[2]) * rate * 0.75;
-
-		}
-	}*/
-	//temp1.copyTo(dst);
-	
 	
 	int rectUp = 0;
 	int rectDown = 0;
 	int rectLeft = 0;
 	int rectRight = 0;
 	iFlag = 0;
-	for (int i = 0; i < dstImage.rows; i+=2)   //找矩形的上边界
+	for (int i = 0; i < faceMask.rows; i+=2)   //找矩形的上边界
 	{
-		for (int j = 0; j < dstImage.cols; j+=2)
+		for (int j = 0; j < faceMask.cols; j+=2)
 		{
-			if (dstImage.at<Vec3b>(i, j)[0] == 255 && dstImage.at<Vec3b>(i, j)[1] == 255 && dstImage.at<Vec3b>(i, j)[2] == 255)
+			if (faceMask.at<Vec3b>(i, j)[0] == 255 && faceMask.at<Vec3b>(i, j)[1] == 255 && faceMask.at<Vec3b>(i, j)[2] == 255)
 			{
 				rectUp = i*1.1;
 				iFlag = 1;
@@ -1380,11 +1367,11 @@ double  ColourCorrect(cv::Mat src, double ratio, cv::Mat& dst, short* p)
 	}
 
 	iFlag = 0;
-	for (int i = dstImage.rows -1; i>0; i -= 2)   //找矩形的下边界
+	for (int i = faceMask.rows -1; i>0; i -= 2)   //找矩形的下边界
 	{
-		for (int j = 0; j < dstImage.cols; j += 2)
+		for (int j = 0; j < faceMask.cols; j += 2)
 		{
-			if (dstImage.at<Vec3b>(i, j)[0] == 255 && dstImage.at<Vec3b>(i, j)[1] == 255 && dstImage.at<Vec3b>(i, j)[2] == 255)
+			if (faceMask.at<Vec3b>(i, j)[0] == 255 && faceMask.at<Vec3b>(i, j)[1] == 255 && faceMask.at<Vec3b>(i, j)[2] == 255)
 			{
 				rectDown = i;
 				iFlag = 1;
@@ -1397,14 +1384,12 @@ double  ColourCorrect(cv::Mat src, double ratio, cv::Mat& dst, short* p)
 		}
 	}
 
-
-
 	iFlag = 0;
-	for (int j = 0; j < dstImage.cols; j += 2)   //找矩形的左边界
+	for (int j = 0; j < faceMask.cols; j += 2)   //找矩形的左边界
 	{
-		for (int i = 0; i < dstImage.rows; i += 2)
+		for (int i = 0; i < faceMask.rows; i += 2)
 		{
-			if (dstImage.at<Vec3b>(i, j)[0] == 255 && dstImage.at<Vec3b>(i, j)[1] == 255 && dstImage.at<Vec3b>(i, j)[2] == 255)
+			if (faceMask.at<Vec3b>(i, j)[0] == 255 && faceMask.at<Vec3b>(i, j)[1] == 255 && faceMask.at<Vec3b>(i, j)[2] == 255)
 			{
 				rectLeft = j*1.12;
 				iFlag = 1;
@@ -1418,11 +1403,11 @@ double  ColourCorrect(cv::Mat src, double ratio, cv::Mat& dst, short* p)
 	}
 
 	iFlag = 0;
-	for (int j = dstImage.cols-1; j >0; j -= 2)   //找矩形的右边界
+	for (int j = faceMask.cols-1; j >0; j -= 2)   //找矩形的右边界
 	{
-		for (int i = 0; i < dstImage.rows; i += 2)
+		for (int i = 0; i < faceMask.rows; i += 2)
 		{
-			if (dstImage.at<Vec3b>(i, j)[0] == 255 && dstImage.at<Vec3b>(i, j)[1] == 255 && dstImage.at<Vec3b>(i, j)[2] == 255)
+			if (faceMask.at<Vec3b>(i, j)[0] == 255 && faceMask.at<Vec3b>(i, j)[1] == 255 && faceMask.at<Vec3b>(i, j)[2] == 255)
 			{
 				rectRight = j*0.95;
 				iFlag = 1;
@@ -1444,11 +1429,11 @@ double  ColourCorrect(cv::Mat src, double ratio, cv::Mat& dst, short* p)
 	int cX = rect.x + rect.width / 2;
 	int cY = rect.y + rect.height / 2;
 
-	for (int row = 0; row < dstImage.rows; row++)
+	for (int row = 0; row < faceMask.rows; row++)
 	{
-		for (int col = 0; col < dstImage.cols; col++)
+		for (int col = 0; col < faceMask.cols; col++)
 		{
-			if (dstImage.at<Vec3b>(row, col)[0] == 0 && dstImage.at<Vec3b>(row, col)[1] == 0 && dstImage.at<Vec3b>(row, col)[2] == 0)
+			if (faceMask.at<Vec3b>(row, col)[0] == 0 && faceMask.at<Vec3b>(row, col)[1] == 0 && faceMask.at<Vec3b>(row, col)[2] == 0)
 			{
 				continue;
 			}
@@ -1468,72 +1453,6 @@ double  ColourCorrect(cv::Mat src, double ratio, cv::Mat& dst, short* p)
 	
 	printf("20210408 Poisson Fusion!\n");
 	
-	//fusion image
-	/*float tmp = 0;
-	Mat dstH(src.size(), CV_8UC3);//RGB3通道就用CV_8UC3 高反差结果 H=F-I+128
-	int width = dst.cols;
-	int height = dst.rows;
-
-	for (int y = 0; y < height; y++)
-	{
-		uchar* srcP = src.ptr<uchar>(y);
-		uchar* lvboP = temp1.ptr<uchar>(y);
-		uchar* dstHP = dstH.ptr<uchar>(y);
-
-		for (int x = 0; x < width; x++)
-		{
-			float r0 = abs((float)lvboP[3 * x] - (float)srcP[3 * x]);
-			tmp = abs(r0 + 128);
-			tmp = tmp > 255 ? 255 : tmp;
-			tmp = tmp < 0 ? 0 : tmp;
-			dstHP[3 * x] = (uchar)(tmp);
-
-			float r1 = abs((float)lvboP[3 * x + 1] - (float)srcP[3 * x + 1]);
-			tmp = abs(r1 + 128);
-			tmp = tmp > 255 ? 255 : tmp;
-			tmp = tmp < 0 ? 0 : tmp;
-			dstHP[3 * x + 1] = (uchar)(tmp);
-
-			float r2 = abs((float)lvboP[3 * x + 2] - (float)srcP[3 * x + 2]);
-			tmp = abs(r2 + 128);
-			tmp = tmp > 255 ? 255 : tmp;
-			tmp = tmp < 0 ? 0 : tmp;
-			dstHP[3 * x + 2] = (uchar)(tmp);
-		}
-	}
-	Mat dstY(dstH.size(), CV_8UC3);
-	int ksize = 3;
-	GaussianBlur(dstH, dstY, Size(ksize, ksize), 0, 0, 0); //高斯滤波得到Y 
-	Mat dstZ(src.size(), CV_8UC3);//Z =??X * Op + (X + 2 * Y - 256)* Op= X  + (2*Y-256) *Op  OP不透明度 X原图 Y是高斯滤波后图像
-	float OP = 0.03;//不透明度
-	for (int y = 0; y < height; y++) //图层混合
-	{
-		uchar* XP = src.ptr<uchar>(y);
-		uchar* dstYP = dstY.ptr<uchar>(y);
-		uchar* dstZP = dstZ.ptr<uchar>(y);
-
-		for (int x = 0; x < width; x++)
-		{
-			float r3 = ((float)dstYP[3 * x] + (float)dstYP[3 * x] - 256) * OP;
-			tmp = r3 + (float)XP[3 * x];
-			tmp = tmp > 255 ? 255 : tmp;
-			tmp = tmp < 0 ? 0 : tmp;
-			dstZP[3 * x] = (uchar)(tmp);
-
-			float r4 = ((float)dstYP[3 * x + 1] + (float)dstYP[3 * x + 1] - 256) * OP;
-			tmp = r4 + (float)XP[3 * x + 1];
-			tmp = tmp > 255 ? 255 : tmp;
-			tmp = tmp < 0 ? 0 : tmp;
-			dstZP[3 * x + 1] = (uchar)(tmp);
-
-			float r5 = ((float)dstYP[3 * x + 2] + (float)dstYP[3 * x + 2] - 256) * OP;
-			tmp = r5 + (float)XP[3 * x + 2];
-			tmp = tmp > 255 ? 255 : tmp;
-			tmp = tmp < 0 ? 0 : tmp;
-			dstZP[3 * x + 2] = (uchar)(tmp);
-		}
-	}
-	dstZ.copyTo(dst);*/
 	
     return 0;
 }
