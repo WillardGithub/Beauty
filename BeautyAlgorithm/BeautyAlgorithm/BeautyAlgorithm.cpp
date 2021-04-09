@@ -713,7 +713,8 @@ double  __stdcall Whitening(Mat src, double ratio, Mat& dst, short* p)//局部�
 	{
 		return -1;
 	}
-	//double rate = 0.01 * ratio;
+	double rate = 0.015 * ratio;
+
 	//cvtColor(src, src, COLOR_RGB2BGR);  //通道问题，取消注释即可解决
 
 	Mat temp1;
@@ -723,11 +724,28 @@ double  __stdcall Whitening(Mat src, double ratio, Mat& dst, short* p)//局部�
 	//int y = p[1];
 	//int w = p[2];
 	//int h = p[3];
-	//Mat faceImage = src(Range(y, y + h), Range(x, x + w)); //取出人脸矩形框
-	//float radius = sqrt(faceImage.rows * faceImage.rows / 4 + faceImage.cols * faceImage.cols / 4);
-	//Mat data1 = BilinearInterpolation2(faceImage, faceImage.cols / 2, faceImage.rows / 2, rate * 15, radius);
-	//data1.copyTo(temp1(Rect(x, y, w, h)));
-	//memcpy(dst.data, temp1.data, sizeof(unsigned char) * temp1.rows * temp1.cols * 3);	
+
+
+	int x = p[6 + 2 * 1];
+	int y = p[6 + 2 * 1 + 1] - 1.2 * (p[6 + 2 * 9 + 1] - p[6 + 2 * 1 + 1]);
+	if (y < 1)
+	{
+		y = 1;
+	}
+	int w = p[6 + 2 * 16] - p[6 + 2 * 1];
+	int h = p[6 + 2 * 9 + 1] - (p[6 + 2 * 1 + 1] - 1.2 * (p[6 + 2 * 9 + 1] - p[6 + 2 * 1 + 1]));
+
+
+	Mat faceImage = src(Range(y, y + h), Range(x, x + w)); //取出人脸矩形框
+	float radius = sqrt(faceImage.rows * faceImage.rows / 4 + faceImage.cols * faceImage.cols / 4);
+	Mat data1 = BilinearInterpolation2(faceImage, faceImage.cols / 2, faceImage.rows / 2, rate * 15, radius);
+	data1.copyTo(temp1(Rect(x, y, w, h)));
+	memcpy(dst.data, temp1.data, sizeof(unsigned char) * temp1.rows * temp1.cols * 3);	
+
+
+	//data1.copyTo(dst);
+
+	return 0;
 
 	//add at 2021-3-23
 	int x1 = p[6 + 2 * 1];
@@ -980,7 +998,7 @@ double  __stdcall Whitening(Mat src, double ratio, Mat& dst, short* p)//局部�
 	//Mat result;
 	//bitwise_and(src, faceMask, result);
 
-	double rate = 0.01 * ratio;
+	//double rate = 0.01 * ratio;
 	for (int row = 0; row < dstImage.rows; row++)
 	{
 		for (int col = 0; col < dstImage.cols; col++)
@@ -1375,37 +1393,9 @@ double __stdcall ColourCorrect(Mat src, double ratio, Mat& dst, short* p)
 	//Mat result;
 	//bitwise_and(src, faceMask, result);
 
-	double rate = 0.35+ 0.005 * ratio; 
+	double rate = 0.25+ 0.005 * ratio; 
 
-	//Mat dstImage;
-	//vector<Mat> Channels;
-	//split(result, Channels);
-	//Mat B = Channels[0];
-	//Mat G = Channels[1];
-	//Mat R = Channels[2];
-	//double Baver = mean(B)[0];
-	//double Gaver = mean(G)[0];
-	//double Raver = mean(R)[0];
-
-	//double K = (Baver + Gaver + Raver) / 3;
-
-	//double Kb = K / Baver;	
-	//double Kg = K / Gaver;	
-	//double Kr = K / Raver;
-
-	///*R * 0.299 + G * 0.587 + B * 0.114*/
-
-	////白平衡处理后的通道	
-	//Mat dstB = B * Kb* rate;
-	//Mat dstG = G * Kg* rate;
-	//Mat dstR = R * Kr* rate;
-	//vector<Mat> dstChanges;
-
-	//dstChanges.push_back(dstB);
-	//dstChanges.push_back(dstG);
-	//dstChanges.push_back(dstR);
-	//merge(dstChanges, dstImage); //合并通道
-
+	//double rate = 0.35 + 0.015 * ratio;
 
 	uchar* pImg = srcLab.data;
 	// 计算颜色转换值
@@ -1418,13 +1408,9 @@ double __stdcall ColourCorrect(Mat src, double ratio, Mat& dst, short* p)
 				continue;
 			}
 
-			//pImg[3 * j + 0] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 0]+ rate * 4));
-			//pImg[3 * j + 1] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 1] + rate * 5));
-			//pImg[3 * j + 2] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 2]+ rate * 3));
-
-			pImg[3 * j + 0] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 0]));
+			pImg[3 * j + 0] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 0]+rate * 4));
 			pImg[3 * j + 1] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 1] + rate * 5));
-			pImg[3 * j + 2] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 2]));
+			pImg[3 * j + 2] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 2] + rate * 3));
 
 
 		}
@@ -1433,6 +1419,33 @@ double __stdcall ColourCorrect(Mat src, double ratio, Mat& dst, short* p)
 
 	Mat temp1;
 	cvtColor(srcLab, temp1, COLOR_Lab2BGR);
+
+	temp1.copyTo(dst);
+	return 0;
+
+	//double rate = 0.015 * ratio;
+	int x = p[6 + 2 * 1];
+	int y = p[6 + 2 * 1 + 1] - 1.2 * (p[6 + 2 * 9 + 1] - p[6 + 2 * 1 + 1]);
+	if (y < 1)
+	{
+		y = 1;
+	}
+	int w = p[6 + 2 * 16] - p[6 + 2 * 1];
+	int h = p[6 + 2 * 9 + 1] - (p[6 + 2 * 1 + 1] - 1.2 * (p[6 + 2 * 9 + 1] - p[6 + 2 * 1 + 1]));
+
+
+	Mat faceImage = src(Range(y, y + h), Range(x, x + w)); //取出人脸矩形框
+	float radius = sqrt(faceImage.rows * faceImage.rows / 4 + faceImage.cols * faceImage.cols / 4);
+	Mat data1 = BilinearInterpolation2(faceImage, faceImage.cols / 2, faceImage.rows / 2, rate*10, radius);
+	data1.copyTo(temp1(Rect(x, y, w, h)));
+	memcpy(dst.data, temp1.data, sizeof(unsigned char) * temp1.rows * temp1.cols * 3);
+
+	return 0;
+
+
+
+
+
 
 	//for (int row = 0; row < dstImage.rows; row++)
 	//{

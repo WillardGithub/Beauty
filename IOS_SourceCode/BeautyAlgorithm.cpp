@@ -846,304 +846,31 @@ return -1;
 		return -1;
 	}
 	
-	printf("Whitening 2021-4-7===p0:%d,p1:%d,p2:%d,p3:%d,p4:%d,p5:%d,p6:%d,p7:%d\n",p[0],p[1],p[2],p[3],p[4],p[5],p[6],p[7]);
+	printf("Whitening 2021-4-8 origin bu guang \n");
 	
+	double rate = 0.0135 * ratio;
 	Mat temp1;
 	src.copyTo(temp1);
 
-	//add at 2021-3-23
-	int x1 = p[4 + 2 * 1];
-	int y1 = p[4 + 2 * 1 + 1] - 1.2 * (p[4 + 2 * 9 + 1] - p[4 + 2 * 1 + 1]);
-	if(y1 <0)
+	int x = p[4 + 2 * 1];
+	int y = p[4 + 2 * 1 + 1] - 1.2 * (p[4 + 2 * 9 + 1] - p[4 + 2 * 1 + 1]);
+	if (y < 1)
 	{
-		y1 = 1;
+		y = 1;
 	}
-	int w1 = p[4 + 2 * 16] -x1;
-	int h1 = p[4 + 2 * 9 + 1] - y1;
-	
-	printf("x1:%d,y1:%d,w1:%d,h1:%d\n",x1,y1,w1,h1);
-
-	Mat structKernel = getStructuringElement(MORPH_RECT, Size(3, 3));//卷积大小
-	Mat imageROI = src(Range(y1, y1 + h1), Range(x1, x1 + w1));
-
-	Mat ycrcb_image;
-	cvtColor(imageROI, ycrcb_image, CV_BGR2YCrCb); //首先转换到YCrCb空间
-	Mat detect;
-	vector<Mat> channels;
-	split(ycrcb_image, channels);
-	Mat output_mask = channels[1];
-	threshold(output_mask, output_mask, 0, 255, CV_THRESH_BINARY | CV_THRESH_OTSU);
-	imageROI.copyTo(detect, output_mask);
-	Mat img0;
-	erode(detect, img0, structKernel, Point(0, 0), 2);//开运算，消除噪点
-
-
-	Mat faceMask(src.rows,src.cols, CV_8UC3,Scalar(0,0,0));
-	vector<Point> rootPoints;
-	for (size_t j = 0; j < 17; j++)
+	int w = p[4 + 2 * 16] - p[4 + 2 * 1];
+	int h = p[4 + 2 * 9 + 1] - (p[4 + 2 * 1 + 1] - 1.2 * (p[4 + 2 * 9 + 1] - p[4 + 2 * 1 + 1]));
+	if(y+h>src.cols-1)
 	{
-		Point pt;
-		pt.x = p[4 + 2 * j];
-		pt.y = p[4 + 2 * j+1];
-		rootPoints.push_back(pt);
+		h = src.cols-1-y;
 	}
 
-	Point edgeP;
-	edgeP.x = p[4 + 2 * 16]- w1/15;
-	edgeP.y = p[4 + 2 * 24+1]*0.85;
-	rootPoints.push_back(edgeP);
-		
+	Mat faceImage = src(Range(y, y + h), Range(x, x + w)); //取出人脸矩形框
+	float radius = sqrt(faceImage.rows * faceImage.rows / 4 + faceImage.cols * faceImage.cols / 4);
+	Mat data1 = BilinearInterpolation2(faceImage, faceImage.cols / 2, faceImage.rows / 2, rate * 15, radius);
+	data1.copyTo(temp1(Rect(x, y, w, h)));
+	memcpy(dst.data, temp1.data, sizeof(unsigned char) * temp1.rows * temp1.cols * 3);	
 	
-	edgeP.x = p[4 + 2 * 0]+w1/15;
-	edgeP.y = p[4 + 2 * 19 + 1] * 0.85;
-	
-	rootPoints.push_back(edgeP);
-
-	vector<vector<Point>> rp;
-	
-	rp.push_back(rootPoints);
-	fillPoly(faceMask,rp,Scalar(255,255,255));
-	
-	
-	
-	int linePos = 0;  //眉毛所在的行
-	int iFlag = 0;
-	for (int row = 0; row < faceMask.rows; row++)
-	{
-		for (int col = 0; col < faceMask.cols; col++)
-		{
-			if (faceMask.at<Vec3b>(row, col)[0] ==255 && faceMask.at<Vec3b>(row, col)[1] ==255 &&faceMask.at<Vec3b>(row, col)[2] == 255)
-			{
-				linePos = row;
-				iFlag = 1;
-				break;
-			}
-		}
-		if (iFlag == 1)
-		{
-			break;
-		}
-	}
-
-	for (int i = 0; i < linePos*1.05; i++)
-	{
-		if (i >= y1 && i < y1 + h1)
-		{
-			for (int j = 0; j < faceMask.cols; j++)
-			{
-				if (j >= x1 && j < x1 + w1)
-				{
-					if (img0.at<Vec3b>(i - y1, j - x1)[0] * img0.at<Vec3b>(i - y1, j - x1)[1] * img0.at<Vec3b>(i - y1, j - x1)[2] != 0)
-					{
-						faceMask.at<Vec3b>(i, j)[0] = 255;
-						faceMask.at<Vec3b>(i, j)[1] = 255;
-						faceMask.at<Vec3b>(i, j)[2] = 255;
-					}
-				}				
-			}
-		}
-	}
-	
-	/*double rate = 0.01 * ratio;
-	for (int row = 0; row < faceMask.rows; row++)
-	{
-		for (int col = 0; col < faceMask.cols; col++)
-		{
-			if (faceMask.at<Vec3b>(row, col)[0] == 0 && faceMask.at<Vec3b>(row, col)[1] == 0 && faceMask.at<Vec3b>(row, col)[2] == 0)
-			{
-				continue;
-			}
-
-			temp1.at<Vec3b>(row, col)[0] += (255 - temp1.at<Vec3b>(row, col)[0]) * rate;
-			temp1.at<Vec3b>(row, col)[1] += (255 - temp1.at<Vec3b>(row, col)[1]) * rate;
-			temp1.at<Vec3b>(row, col)[2] += (255 - temp1.at<Vec3b>(row, col)[2]) * rate;
-
-		}
-	}*/
-	//temp1.copyTo(dst);
-	
-	
-	//add at 2021-04-28
-	//寻找外接矩形
-
-	int rectUp = 0;
-	int rectDown = 0;
-	int rectLeft = 0;
-	int rectRight = 0;
-	iFlag = 0;
-	for (int i = 0; i < faceMask.rows; i+=2)   //找矩形的上边界
-	{
-		for (int j = 0; j < faceMask.cols; j+=2)
-		{
-			if (faceMask.at<Vec3b>(i, j)[0] == 255 && faceMask.at<Vec3b>(i, j)[1] == 255 && faceMask.at<Vec3b>(i, j)[2] == 255)
-			{
-				rectUp = i*1.1;
-				iFlag = 1;
-				break;
-			}
-		}
-		if (iFlag == 1)
-		{
-			break;
-		}
-	}
-
-	iFlag = 0;
-	for (int i = faceMask.rows -1; i>0; i -= 2)   //找矩形的下边界
-	{
-		for (int j = 0; j < faceMask.cols; j += 2)
-		{
-			if (faceMask.at<Vec3b>(i, j)[0] == 255 && faceMask.at<Vec3b>(i, j)[1] == 255 && faceMask.at<Vec3b>(i, j)[2] == 255)
-			{
-				rectDown = i;
-				iFlag = 1;
-				break;
-			}
-		}
-		if (iFlag == 1)
-		{
-			break;
-		}
-	}
-
-
-
-	iFlag = 0;
-	for (int j = 0; j < faceMask.cols; j += 2)   //找矩形的左边界
-	{
-		for (int i = 0; i < faceMask.rows; i += 2)
-		{
-			if (faceMask.at<Vec3b>(i, j)[0] == 255 && faceMask.at<Vec3b>(i, j)[1] == 255 && faceMask.at<Vec3b>(i, j)[2] == 255)
-			{
-				rectLeft = j*1.12;
-				iFlag = 1;
-				break;
-			}
-		}
-		if (iFlag == 1)
-		{
-			break;
-		}
-	}
-
-	iFlag = 0;
-	for (int j = faceMask.cols-1; j >0; j -= 2)   //找矩形的右边界
-	{
-		for (int i = 0; i < faceMask.rows; i += 2)
-		{
-			if (faceMask.at<Vec3b>(i, j)[0] == 255 && faceMask.at<Vec3b>(i, j)[1] == 255 && faceMask.at<Vec3b>(i, j)[2] == 255)
-			{
-				rectRight = j*0.95;
-				iFlag = 1;
-				break;
-			}
-		}
-		if (iFlag == 1)
-		{
-			break;
-		}
-	}
-
-	Rect rect;
-	rect.x = rectLeft;
-	rect.y = rectUp;
-	rect.width = rectRight - rectLeft;
-	rect.height = rectDown - rectUp;
-
-	int cX = rect.x + rect.width / 2;
-	int cY = rect.y + rect.height / 2;
-
-
-	double rate = 0.01 * ratio;
-	for (int row = 0; row < faceMask.rows; row++)
-	{
-		for (int col = 0; col < faceMask.cols; col++)
-		{
-			if (faceMask.at<Vec3b>(row, col)[0] == 0 && faceMask.at<Vec3b>(row, col)[1] == 0 && faceMask.at<Vec3b>(row, col)[2] == 0)
-			{
-				continue;
-			}
-			temp1.at<Vec3b>(row, col)[0] += (255 - temp1.at<Vec3b>(row, col)[0]) * rate*0.125;
-			temp1.at<Vec3b>(row, col)[1] += (255 - temp1.at<Vec3b>(row, col)[1]) * rate*0.125;
-			temp1.at<Vec3b>(row, col)[2] += (255 - temp1.at<Vec3b>(row, col)[2]) * rate*0.125;
-		}
-	}
-
-	//泊松融合
-	Mat faceROI = temp1(Range(rect.y, rect.y+rect.height), Range(rect.x, rect.x + rect.width));
-	Mat src_mask = 255 * Mat::ones(faceROI.rows, faceROI.cols, faceROI.depth());
-	Point center(cX, cY);
-	Mat mixed_clone;
-	seamlessClone(faceROI, src, src_mask, center, mixed_clone, MIXED_CLONE);	
-	mixed_clone.copyTo(dst);
-	
-	//mix image
-	/*float tmp = 0;
-	Mat dstH(src.size(), CV_8UC3);//RGB3通道就用CV_8UC3 高反差结果 H=F-I+128
-	int width = dst.cols;
-	int height = dst.rows;
-
-	for (int y = 0; y < height; y++)
-	{
-		uchar* srcP = src.ptr<uchar>(y);
-		uchar* lvboP = temp1.ptr<uchar>(y);
-		uchar* dstHP = dstH.ptr<uchar>(y);
-
-		for (int x = 0; x < width; x++)
-		{
-			float r0 = abs((float)lvboP[3 * x] - (float)srcP[3 * x]);
-			tmp = abs(r0 + 128);
-			tmp = tmp > 255 ? 255 : tmp;
-			tmp = tmp < 0 ? 0 : tmp;
-			dstHP[3 * x] = (uchar)(tmp);
-
-			float r1 = abs((float)lvboP[3 * x + 1] - (float)srcP[3 * x + 1]);
-			tmp = abs(r1 + 128);
-			tmp = tmp > 255 ? 255 : tmp;
-			tmp = tmp < 0 ? 0 : tmp;
-			dstHP[3 * x + 1] = (uchar)(tmp);
-
-			float r2 = abs((float)lvboP[3 * x + 2] - (float)srcP[3 * x + 2]);
-			tmp = abs(r2 + 128);
-			tmp = tmp > 255 ? 255 : tmp;
-			tmp = tmp < 0 ? 0 : tmp;
-			dstHP[3 * x + 2] = (uchar)(tmp);
-		}
-	}
-	Mat dstY(dstH.size(), CV_8UC3);
-	int ksize = 3;
-	GaussianBlur(dstH, dstY, Size(ksize, ksize), 0, 0, 0); //高斯滤波得到Y 
-	Mat dstZ(src.size(), CV_8UC3);//Z =??X * Op + (X + 2 * Y - 256)* Op= X  + (2*Y-256) *Op  OP不透明度 X原图 Y是高斯滤波后图像
-	float OP = 0.035;//不透明度
-	for (int y = 0; y < height; y++) //图层混合
-	{
-		uchar* XP = src.ptr<uchar>(y);
-		uchar* dstYP = dstY.ptr<uchar>(y);
-		uchar* dstZP = dstZ.ptr<uchar>(y);
-
-		for (int x = 0; x < width; x++)
-		{
-			float r3 = ((float)dstYP[3 * x] + (float)dstYP[3 * x] - 256) * OP;
-			tmp = r3 + (float)XP[3 * x];
-			tmp = tmp > 255 ? 255 : tmp;
-			tmp = tmp < 0 ? 0 : tmp;
-			dstZP[3 * x] = (uchar)(tmp);
-
-			float r4 = ((float)dstYP[3 * x + 1] + (float)dstYP[3 * x + 1] - 256) * OP;
-			tmp = r4 + (float)XP[3 * x + 1];
-			tmp = tmp > 255 ? 255 : tmp;
-			tmp = tmp < 0 ? 0 : tmp;
-			dstZP[3 * x + 1] = (uchar)(tmp);
-
-			float r5 = ((float)dstYP[3 * x + 2] + (float)dstYP[3 * x + 2] - 256) * OP;
-			tmp = r5 + (float)XP[3 * x + 2];
-			tmp = tmp > 255 ? 255 : tmp;
-			tmp = tmp < 0 ? 0 : tmp;
-			dstZP[3 * x + 2] = (uchar)(tmp);
-		}
-	}
-	dstZ.copyTo(dst);*/
-
 	printf("2021-04-08 local whiten finished!");
 	return 0;
 }
@@ -1226,12 +953,16 @@ double  ColourCorrect(cv::Mat src, double ratio, cv::Mat& dst, short* p)
 	//added at 2021-03-21 	//定位人脸区域
 	int x1 = p[4 + 2 * 1];
 	int y1 = p[4 + 2 * 1 + 1] - 1.2 * (p[4 + 2 * 9 + 1] - p[4 + 2 * 1 + 1]);
-	if(y1 <0)
+	if (y1 < 1)
 	{
 		y1 = 1;
 	}
-	int w1 = p[4 + 2 * 16] -x1;
+	int w1 = p[4 + 2 * 16] - x1;
 	int h1 = p[4 + 2 * 9 + 1] - y1;
+	if(y1+h1>src.cols-1)
+	{
+		h1 = src.cols-1-y1;
+	}
 	
 	printf("Correct x1:%d,y1:%d,w1:%d,h1:%d\n",x1,y1,w1,h1);
 	Mat structKernel = getStructuringElement(MORPH_RECT, Size(3, 3));//卷积大小
@@ -1318,23 +1049,22 @@ double  ColourCorrect(cv::Mat src, double ratio, cv::Mat& dst, short* p)
 		}
 	}
 
-	double rate = 0.35+ 0.005 * ratio; 
-
+	double rate = 0.25+ 0.005 * ratio; 
 	uchar* pImg = srcLab.data;
 	// 计算颜色转换值
 	for (int i = 0; i < srcLab.rows; i++)
 	{
 		for (int j = 0; j < srcLab.cols; j++)
 		{
-
 			if (faceMask.at<Vec3b>(i, j)[0] == 0 && faceMask.at<Vec3b>(i, j)[1] == 0 && faceMask.at<Vec3b>(i, j)[2] == 0)
 			{
 				continue;
 			}
 
-			pImg[3 * j + 0] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 0]));
+			pImg[3 * j + 0] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 0]+rate * 4));
 			pImg[3 * j + 1] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 1] + rate * 5));
-			pImg[3 * j + 2] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 2]));
+			pImg[3 * j + 2] = (uchar)min_uchar(255, max_uchar(0, pImg[3 * j + 2] + rate * 3));
+
 
 		}
 		pImg += srcLab.step;
@@ -1343,118 +1073,9 @@ double  ColourCorrect(cv::Mat src, double ratio, cv::Mat& dst, short* p)
 	Mat temp1;
 	cvtColor(srcLab, temp1, COLOR_Lab2BGR);
 
-	
-	int rectUp = 0;
-	int rectDown = 0;
-	int rectLeft = 0;
-	int rectRight = 0;
-	iFlag = 0;
-	for (int i = 0; i < faceMask.rows; i+=2)   //找矩形的上边界
-	{
-		for (int j = 0; j < faceMask.cols; j+=2)
-		{
-			if (faceMask.at<Vec3b>(i, j)[0] == 255 && faceMask.at<Vec3b>(i, j)[1] == 255 && faceMask.at<Vec3b>(i, j)[2] == 255)
-			{
-				rectUp = i*1.1;
-				iFlag = 1;
-				break;
-			}
-		}
-		if (iFlag == 1)
-		{
-			break;
-		}
-	}
+	temp1.copyTo(dst);
+	return 0;
 
-	iFlag = 0;
-	for (int i = faceMask.rows -1; i>0; i -= 2)   //找矩形的下边界
-	{
-		for (int j = 0; j < faceMask.cols; j += 2)
-		{
-			if (faceMask.at<Vec3b>(i, j)[0] == 255 && faceMask.at<Vec3b>(i, j)[1] == 255 && faceMask.at<Vec3b>(i, j)[2] == 255)
-			{
-				rectDown = i;
-				iFlag = 1;
-				break;
-			}
-		}
-		if (iFlag == 1)
-		{
-			break;
-		}
-	}
-
-	iFlag = 0;
-	for (int j = 0; j < faceMask.cols; j += 2)   //找矩形的左边界
-	{
-		for (int i = 0; i < faceMask.rows; i += 2)
-		{
-			if (faceMask.at<Vec3b>(i, j)[0] == 255 && faceMask.at<Vec3b>(i, j)[1] == 255 && faceMask.at<Vec3b>(i, j)[2] == 255)
-			{
-				rectLeft = j*1.12;
-				iFlag = 1;
-				break;
-			}
-		}
-		if (iFlag == 1)
-		{
-			break;
-		}
-	}
-
-	iFlag = 0;
-	for (int j = faceMask.cols-1; j >0; j -= 2)   //找矩形的右边界
-	{
-		for (int i = 0; i < faceMask.rows; i += 2)
-		{
-			if (faceMask.at<Vec3b>(i, j)[0] == 255 && faceMask.at<Vec3b>(i, j)[1] == 255 && faceMask.at<Vec3b>(i, j)[2] == 255)
-			{
-				rectRight = j*0.95;
-				iFlag = 1;
-				break;
-			}
-		}
-		if (iFlag == 1)
-		{
-			break;
-		}
-	}
-
-	Rect rect;
-	rect.x = rectLeft;
-	rect.y = rectUp;
-	rect.width = rectRight - rectLeft;
-	rect.height = rectDown - rectUp;
-
-	int cX = rect.x + rect.width / 2;
-	int cY = rect.y + rect.height / 2;
-
-	for (int row = 0; row < faceMask.rows; row++)
-	{
-		for (int col = 0; col < faceMask.cols; col++)
-		{
-			if (faceMask.at<Vec3b>(row, col)[0] == 0 && faceMask.at<Vec3b>(row, col)[1] == 0 && faceMask.at<Vec3b>(row, col)[2] == 0)
-			{
-				continue;
-			}
-			temp1.at<Vec3b>(row, col)[0] += (255 - temp1.at<Vec3b>(row, col)[0]) * rate*0.15;
-			temp1.at<Vec3b>(row, col)[1] += (255 - temp1.at<Vec3b>(row, col)[1]) * rate*0.15;
-			temp1.at<Vec3b>(row, col)[2] += (255 - temp1.at<Vec3b>(row, col)[2]) * rate*0.15;
-		}
-	}
-
-	//泊松融合
-	Mat faceROI = temp1(Range(rect.y, rect.y+rect.height), Range(rect.x, rect.x + rect.width));
-	Mat src_mask = 255 * Mat::ones(faceROI.rows, faceROI.cols, faceROI.depth());
-	Point center(cX, cY);
-	Mat mixed_clone;
-	seamlessClone(faceROI, src, src_mask, center, mixed_clone, MIXED_CLONE);	
-	mixed_clone.copyTo(dst);
-	
-	printf("20210408 Poisson Fusion!\n");
-	
-	
-    return 0;
 }
 
 double  Sharpen(cv::Mat src, double ratio, cv::Mat& dst, short* p)
@@ -1499,13 +1120,17 @@ double   EnhanceRed(cv::Mat src, double ratio, cv::Mat& dst, short* p)
 
 	//added at 2021-03-21 	//定位人脸区域
 	int x1 = p[4 + 2 * 1];
-	int y1 = p[4 + 2 * 1 + 1] - 1.2 * (p[4 + 2 * 9 + 1] - p[4 + 2 * 1 + 1]);
-	if(y1 <0)
+	int y1= p[4 + 2 * 1 + 1] - 1.2 * (p[4 + 2 * 9 + 1] - p[4 + 2 * 1 + 1]);
+	if (y1 < 1)
 	{
 		y1 = 1;
 	}
-	int w1 = p[4 + 2 * 16] -x1;
+	int w1 = p[4 + 2 * 16] - x1;
 	int h1 = p[4 + 2 * 9 + 1] - y1;
+	if(y1+h1>src.cols-1)
+	{
+		h1 = src.cols-1-y1;
+	}
 
 	Mat structKernel = getStructuringElement(MORPH_RECT, Size(3, 3));//卷积大小
 	Mat imageROI = src(Range(y1, y1 + h1), Range(x1, x1 + w1));
